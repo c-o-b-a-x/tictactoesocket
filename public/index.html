@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html>
+  <body
+    style="
+      background: black;
+      color: white;
+      text-align: center;
+      font-family: Arial;
+    "
+  >
+    <h1>Tic Tac Toe</h1>
+    <h2 id="status">Connecting…</h2>
+
+    <div
+      id="board"
+      style="
+        width: 300px;
+        margin: auto;
+        display: grid;
+        grid-template-columns: repeat(3, 100px);
+        grid-gap: 5px;
+      "
+    ></div>
+
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <script>
+      const socket = io(); // auto-connect to same server
+
+      let symbol = "";
+      let currentTurn = "";
+      let board = [];
+
+      const boardDiv = document.getElementById("board");
+      const status = document.getElementById("status");
+
+      for (let i = 0; i < 9; i++) {
+        const sq = document.createElement("div");
+        sq.style.width = "100px";
+        sq.style.height = "100px";
+        sq.style.fontSize = "50px";
+        sq.style.display = "flex";
+        sq.style.alignItems = "center";
+        sq.style.justifyContent = "center";
+        sq.style.border = "2px solid white";
+        sq.style.cursor = "pointer";
+        sq.dataset.index = i;
+
+        sq.onclick = () => socket.emit("play", i);
+        boardDiv.appendChild(sq);
+      }
+
+      socket.on("symbol", (s) => {
+        symbol = s;
+        status.innerText = "You are: " + symbol;
+      });
+
+      socket.on("full", () => {
+        status.innerText = "Room full!";
+      });
+
+      socket.on("boardUpdate", (data) => {
+        board = data.board;
+        currentTurn = data.currentTurn;
+
+        [...boardDiv.children].forEach((sq, i) => {
+          sq.innerText = board[i];
+        });
+
+        status.innerText =
+          currentTurn === symbol ? "Your turn!" : "Opponent's turn…";
+      });
+    </script>
+  </body>
+</html>
