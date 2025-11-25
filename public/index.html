@@ -1,74 +1,131 @@
 <!DOCTYPE html>
 <html>
-  <body
-    style="
-      background: black;
-      color: white;
-      text-align: center;
-      font-family: Arial;
-    "
-  >
-    <h1>Tic Tac Toe</h1>
-    <h2 id="status">Connecting…</h2>
-
-    <div
-      id="board"
-      style="
+  <head>
+    <title>Tic Tac Toe</title>
+    <style>
+      body {
+        background: #111;
+        color: white;
+        font-family: Arial;
+        text-align: center;
+      }
+      #board {
         width: 300px;
-        margin: auto;
+        margin: 20px auto;
         display: grid;
         grid-template-columns: repeat(3, 100px);
-        grid-gap: 5px;
-      "
-    ></div>
+        gap: 5px;
+      }
+      .cell {
+        width: 100px;
+        height: 100px;
+        font-size: 50px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border: 2px solid white;
+        cursor: pointer;
+      }
+      #roomScreen {
+        margin-top: 50px;
+      }
+      #restart {
+        display: none;
+        margin-top: 20px;
+        padding: 10px 20px;
+        font-size: 20px;
+      }
+    </style>
+  </head>
+
+  <body>
+    <h1>Tic Tac Toe</h1>
+
+    <div id="roomScreen">
+      <input
+        id="roomCode"
+        placeholder="Room code…"
+        style="padding: 10px; font-size: 20px"
+      />
+      <button onclick="joinRoom()" style="font-size: 20px; padding: 10px">
+        Join
+      </button>
+    </div>
+
+    <h2 id="status"></h2>
+
+    <div id="board"></div>
+
+    <button id="restart" onclick="restart()">Play Again</button>
 
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
     <script>
-      const socket = io(); // auto-connect to same server
+      const socket = io();
 
       let symbol = "";
-      let currentTurn = "";
-      let board = [];
+      let roomCode = "";
+      let gameOver = false;
 
       const boardDiv = document.getElementById("board");
       const status = document.getElementById("status");
+      const restartBtn = document.getElementById("restart");
 
+      // build UI cells
       for (let i = 0; i < 9; i++) {
-        const sq = document.createElement("div");
-        sq.style.width = "100px";
-        sq.style.height = "100px";
-        sq.style.fontSize = "50px";
-        sq.style.display = "flex";
-        sq.style.alignItems = "center";
-        sq.style.justifyContent = "center";
-        sq.style.border = "2px solid white";
-        sq.style.cursor = "pointer";
-        sq.dataset.index = i;
+        let cell = document.createElement("div");
+        cell.className = "cell";
+        cell.dataset.index = i;
+        cell.onclick = () => {
+          if (!gameOver) socket.emit("play", { roomCode, index: i });
+        };
+        boardDiv.appendChild(cell);
+      }
 
-        sq.onclick = () => socket.emit("play", i);
-        boardDiv.appendChild(sq);
+      function joinRoom() {
+        roomCode = document.getElementById("roomCode").value.trim();
+        if (roomCode === "") return;
+        socket.emit("joinRoom", roomCode);
       }
 
       socket.on("symbol", (s) => {
         symbol = s;
-        status.innerText = "You are: " + symbol;
+        document.getElementById("roomScreen").style.display = "none";
+        status.innerText = "You are " + symbol;
       });
 
       socket.on("full", () => {
-        status.innerText = "Room full!";
+        alert("Room is full!");
       });
 
-      socket.on("boardUpdate", (data) => {
-        board = data.board;
-        currentTurn = data.currentTurn;
+      socket.on("update", (room) => {
+        const { board, turn } = room;
 
-        [...boardDiv.children].forEach((sq, i) => {
-          sq.innerText = board[i];
+        gameOver = false;
+        restartBtn.style.display = "none";
+
+        [...boardDiv.children].forEach((cell, i) => {
+          cell.innerText = board[i];
         });
 
-        status.innerText =
-          currentTurn === symbol ? "Your turn!" : "Opponent's turn…";
+        if (turn === symbol) status.innerText = "Your turn (" + symbol + ")";
+        else status.innerText = "Opponent's turn (" + turn + ")";
       });
+
+      socket.on("gameOver", ({ winner }) => {
+        gameOver = true;
+        restartBtn.style.display = "block";
+
+        if (winner === "draw") {
+          status.innerText = "It's a draw!";
+          return;
+        }
+
+        status.innerText = winner === symbol ? "You win!" : "You lose!";
+      });
+
+      function restart() {
+        socket.emit("restart", roomCode);
+      }
     </script>
   </body>
 </html>
