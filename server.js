@@ -5,60 +5,62 @@ const path = require("path");
 
 const app = express();
 const server = http.createServer(app);
+
 const io = new Server(server, {
   cors: { origin: "*" },
 });
 
-// serve static files for client
 app.use(express.static(path.join(__dirname, "public")));
 
 const rooms = {};
-/*
-rooms = {
-  roomCode: {
-    players: { X: socketID, O: socketID },
-    board: ["","","","","","","","",""],
-    turn: "X",
-    gameOver: false
-  }
-}
-*/
 
-function checkWin(b) {
-  const wins = [
-    [0, 1, 2],
-    [3, 4, 5],
-    [6, 7, 8],
-    [0, 3, 6],
-    [1, 4, 7],
-    [2, 5, 8],
-    [0, 4, 8],
-    [2, 4, 6],
-  ];
-  for (const [a, b2, c] of wins) {
-    if (b[a] && b[a] === b[b2] && b[a] === b[c]) {
-      return b[a];
+// WIN LINES (client will animate)
+const winLines = [
+  [0, 1, 2],
+  [3, 4, 5],
+  [6, 7, 8],
+  [0, 3, 6],
+  [1, 4, 7],
+  [2, 5, 8],
+  [0, 4, 8],
+  [2, 4, 6],
+];
+
+function getWinData(board) {
+  for (let i = 0; i < winLines.length; i++) {
+    const [a, b, c] = winLines[i];
+    if (board[a] && board[a] === board[b] && board[a] === board[c]) {
+      return { winner: board[a], line: [a, b, c] };
     }
   }
   return null;
 }
 
 io.on("connection", (socket) => {
-  console.log("User entered:", socket.id);
+  console.log("Connected:", socket.id);
 
-  socket.on("joinRoom", (roomCode) => {
+  // =============== ROOM LIST REQUEST ===============
+  socket.on("getRooms", () => {
+    socket.emit("roomList", Object.keys(rooms));
+  });
+
+  // =============== JOIN ROOM ===============
+  socket.on("joinRoom", ({ roomCode, username }) => {
     if (!rooms[roomCode]) {
       rooms[roomCode] = {
-        players: {},
+        players: {}, // X, O
+        spectators: [], // infinite
+        usernames: {}, // socketID -> username
         board: ["", "", "", "", "", "", "", "", ""],
         turn: "X",
-        gameOver: false,
+        over: false,
       };
     }
 
     const room = rooms[roomCode];
+    room.usernames[socket.id] = username;
 
-    // assign symbol
+    // assign X or O
     let symbol = "";
     if (!room.players.X) {
       room.players.X = socket.id;
@@ -67,7 +69,10 @@ io.on("connection", (socket) => {
       room.players.O = socket.id;
       symbol = "O";
     } else {
-      socket.emit("full");
+      room.spectators.push(socket.id);
+      socket.emit("spectator");
+      socket.join(roomCode);
+      io.to(roomCode).emit("update", room);
       return;
     }
 
@@ -76,12 +81,12 @@ io.on("connection", (socket) => {
     io.to(roomCode).emit("update", room);
   });
 
+  // =============== PLAY MOVE ===============
   socket.on("play", ({ roomCode, index }) => {
     const room = rooms[roomCode];
-    if (!room || room.gameOver) return;
+    if (!room || room.over) return;
 
-    // Check if its player's turn
-    const symbol =
+    let symbol =
       room.players.X === socket.id
         ? "X"
         : room.players.O === socket.id
@@ -93,47 +98,50 @@ io.on("connection", (socket) => {
 
     room.board[index] = symbol;
 
-    // check win
-    const winner = checkWin(room.board);
-    if (winner) {
-      room.gameOver = true;
-      io.to(roomCode).emit("gameOver", { winner });
+    const winData = getWinData(room.board);
+    if (winData) {
+      room.over = true;
+      io.to(roomCode).emit("gameOver", winData);
       return;
     }
 
-    // check draw
     if (!room.board.includes("")) {
-      room.gameOver = true;
-      io.to(roomCode).emit("gameOver", { winner: "draw" });
+      room.over = true;
+      io.to(roomCode).emit("gameOver", { winner: "draw", line: [] });
       return;
     }
 
-    // switch turn
     room.turn = room.turn === "X" ? "O" : "X";
-
     io.to(roomCode).emit("update", room);
   });
 
+  // =============== RESTART ===============
   socket.on("restart", (roomCode) => {
     const room = rooms[roomCode];
     if (!room) return;
 
     room.board = ["", "", "", "", "", "", "", "", ""];
     room.turn = "X";
-    room.gameOver = false;
+    room.over = false;
 
     io.to(roomCode).emit("update", room);
   });
 
   socket.on("disconnect", () => {
-    for (const roomCode in rooms) {
-      const room = rooms[roomCode];
+    for (const r in rooms) {
+      const room = rooms[r];
+      if (!room) continue;
+
       if (room.players.X === socket.id) delete room.players.X;
       if (room.players.O === socket.id) delete room.players.O;
-      io.to(roomCode).emit("update", room);
+
+      room.spectators = room.spectators.filter((s) => s !== socket.id);
+      delete room.usernames[socket.id];
+
+      io.to(r).emit("update", room);
     }
   });
 });
 
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => console.log("Server running on " + PORT));
+server.listen(PORT, () => console.log("Server on " + PORT));
