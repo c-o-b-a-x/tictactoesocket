@@ -2,75 +2,220 @@
 <html>
   <head>
     <title>Tic Tac Toe</title>
+
     <style>
       body {
+        margin: 0;
+        font-family: Arial, sans-serif;
         background: #111;
-        color: white;
-        font-family: Arial;
+        color: #fff;
         text-align: center;
+        transition: 0.3s;
       }
+      .light {
+        background: #f5f5f5;
+        color: #111;
+      }
+
+      #mainScreen,
+      #roomScreen,
+      #gameScreen {
+        display: none;
+      }
+
+      h1 {
+        margin-top: 30px;
+      }
+
+      /* Room List */
+      #roomList button {
+        display: block;
+        width: 200px;
+        padding: 10px;
+        margin: 10px auto;
+        font-size: 22px;
+        cursor: pointer;
+      }
+
+      #joinInputs {
+        margin-top: 25px;
+      }
+
+      input {
+        padding: 10px;
+        font-size: 18px;
+        margin: 5px;
+      }
+
+      button {
+        padding: 12px 20px;
+        font-size: 18px;
+        cursor: pointer;
+        border: none;
+        border-radius: 8px;
+      }
+
+      /* Board */
       #board {
-        width: 300px;
-        margin: 20px auto;
+        margin: 25px auto;
+        width: 330px;
         display: grid;
-        grid-template-columns: repeat(3, 100px);
+        grid-template-columns: repeat(3, 110px);
         gap: 5px;
       }
+
       .cell {
-        width: 100px;
-        height: 100px;
-        font-size: 50px;
+        width: 110px;
+        height: 110px;
+        background: rgba(255, 255, 255, 0.1);
         display: flex;
         align-items: center;
         justify-content: center;
-        border: 2px solid white;
+        font-size: 60px;
+        border-radius: 10px;
         cursor: pointer;
+        transition: 0.15s;
       }
-      #roomScreen {
-        margin-top: 50px;
+
+      .cell:hover {
+        background: rgba(255, 255, 255, 0.2);
       }
-      #restart {
+
+      /* Winning line animation */
+      .win {
+        background: #00ff88 !important;
+        animation: pulse 0.5s alternate infinite;
+      }
+
+      @keyframes pulse {
+        from {
+          transform: scale(1);
+        }
+        to {
+          transform: scale(1.15);
+        }
+      }
+
+      #restartBtn {
         display: none;
         margin-top: 20px;
-        padding: 10px 20px;
-        font-size: 20px;
+      }
+
+      #toggleTheme {
+        position: fixed;
+        top: 10px;
+        right: 10px;
+        padding: 8px 15px;
+        font-size: 16px;
       }
     </style>
   </head>
 
   <body>
+    <button id="toggleTheme">Light Mode</button>
+
     <h1>Tic Tac Toe</h1>
 
-    <div id="roomScreen">
-      <input
-        id="roomCode"
-        placeholder="Room code…"
-        style="padding: 10px; font-size: 20px"
-      />
-      <button onclick="joinRoom()" style="font-size: 20px; padding: 10px">
-        Join
-      </button>
+    <!-- ========== ROOM LIST SCREEN ========== -->
+    <div id="mainScreen">
+      <h2>Available Rooms</h2>
+      <div id="roomList"></div>
+      <br />
+
+      <button onclick="showJoin()">Join/Create Room</button>
     </div>
 
-    <h2 id="status"></h2>
+    <!-- ========== ENTER USERNAME + ROOM ========== -->
+    <div id="roomScreen">
+      <h2>Enter Username & Room</h2>
 
-    <div id="board"></div>
+      <div id="joinInputs">
+        <input id="username" placeholder="Your name" />
+        <br />
+        <input id="roomCode" placeholder="Room code" />
+        <br />
+        <button onclick="joinRoom()">Enter</button>
+      </div>
 
-    <button id="restart" onclick="restart()">Play Again</button>
+      <br />
+      <button onclick="backToMain()">Back</button>
+    </div>
+
+    <!-- ========== GAME SCREEN ========== -->
+    <div id="gameScreen">
+      <h2 id="status">Connecting...</h2>
+
+      <div id="board"></div>
+
+      <button id="restartBtn" onclick="restart()">Play Again</button>
+    </div>
 
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+
     <script>
       const socket = io();
 
-      let symbol = "";
+      let username = "";
       let roomCode = "";
+      let symbol = "";
       let gameOver = false;
 
       const boardDiv = document.getElementById("board");
       const status = document.getElementById("status");
-      const restartBtn = document.getElementById("restart");
+      const restartBtn = document.getElementById("restartBtn");
 
-      // build UI cells
+      const mainScreen = document.getElementById("mainScreen");
+      const roomScreen = document.getElementById("roomScreen");
+      const gameScreen = document.getElementById("gameScreen");
+      const roomListDiv = document.getElementById("roomList");
+
+      // ============= THEME TOGGLE =================
+      document.getElementById("toggleTheme").onclick = () => {
+        document.body.classList.toggle("light");
+        document.getElementById("toggleTheme").innerText =
+          document.body.classList.contains("light")
+            ? "Dark Mode"
+            : "Light Mode";
+      };
+
+      // ============= INIT =============
+      socket.emit("getRooms");
+      mainScreen.style.display = "block";
+
+      socket.on("roomList", (rooms) => {
+        roomListDiv.innerHTML = "";
+        rooms.forEach((r) => {
+          const btn = document.createElement("button");
+          btn.innerText = r;
+          btn.onclick = () => showJoin(r);
+          roomListDiv.appendChild(btn);
+        });
+      });
+
+      function showJoin(room = "") {
+        mainScreen.style.display = "none";
+        roomScreen.style.display = "block";
+        document.getElementById("roomCode").value = room;
+      }
+
+      function backToMain() {
+        roomScreen.style.display = "none";
+        mainScreen.style.display = "block";
+      }
+
+      function joinRoom() {
+        username = document.getElementById("username").value.trim();
+        roomCode = document.getElementById("roomCode").value.trim();
+
+        if (!username || !roomCode) return;
+
+        socket.emit("joinRoom", { roomCode, username });
+
+        roomScreen.style.display = "none";
+        gameScreen.style.display = "block";
+      }
+
+      // =============== BOARD UI ===============
       for (let i = 0; i < 9; i++) {
         let cell = document.createElement("div");
         cell.className = "cell";
@@ -81,46 +226,57 @@
         boardDiv.appendChild(cell);
       }
 
-      function joinRoom() {
-        roomCode = document.getElementById("roomCode").value.trim();
-        if (roomCode === "") return;
-        socket.emit("joinRoom", roomCode);
-      }
-
+      // =============== SOCKET EVENTS ===============
       socket.on("symbol", (s) => {
         symbol = s;
-        document.getElementById("roomScreen").style.display = "none";
-        status.innerText = "You are " + symbol;
       });
 
-      socket.on("full", () => {
-        alert("Room is full!");
+      socket.on("spectator", () => {
+        status.innerText = "You are a spectator";
       });
 
       socket.on("update", (room) => {
-        const { board, turn } = room;
-
         gameOver = false;
         restartBtn.style.display = "none";
 
+        const { board, turn, usernames } = room;
+
         [...boardDiv.children].forEach((cell, i) => {
+          cell.classList.remove("win");
           cell.innerText = board[i];
         });
 
-        if (turn === symbol) status.innerText = "Your turn (" + symbol + ")";
-        else status.innerText = "Opponent's turn (" + turn + ")";
+        if (!symbol) return;
+
+        if (turn === symbol) {
+          status.innerText = `Your turn (${symbol})`;
+        } else {
+          const opp =
+            turn === "X"
+              ? room.players?.X
+                ? usernames[room.players.X]
+                : "X"
+              : room.players?.O
+              ? usernames[room.players.O]
+              : "O";
+
+          status.innerText = `${opp}'s turn (${turn})`;
+        }
       });
 
-      socket.on("gameOver", ({ winner }) => {
+      socket.on("gameOver", ({ winner, line }) => {
         gameOver = true;
         restartBtn.style.display = "block";
 
         if (winner === "draw") {
           status.innerText = "It's a draw!";
-          return;
-        }
+        } else {
+          status.innerText = winner === symbol ? "You win!" : "You lose!";
 
-        status.innerText = winner === symbol ? "You win!" : "You lose!";
+          line.forEach((i) => {
+            boardDiv.children[i].classList.add("win");
+          });
+        }
       });
 
       function restart() {
