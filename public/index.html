@@ -35,6 +35,29 @@
         <br />
         <button onclick="backToMain()">Back</button>
       </div>
+      <!-- Global chat (home screen only) -->
+      <div id="globalChat" class="chat-container">
+        <h2>Global Chat</h2>
+        <ul id="globalMessages"></ul>
+        <input
+          id="globalInput"
+          placeholder="Type a message..."
+          autocomplete="off"
+        />
+        <button id="globalSendBtn">Send</button>
+      </div>
+
+      <!-- Room chat (visible only inside a room) -->
+      <div id="roomChat" class="chat-container">
+        <h2>Room Chat</h2>
+        <ul id="roomMessages"></ul>
+        <input
+          id="roomInput"
+          placeholder="Type a message..."
+          autocomplete="off"
+        />
+        <button id="roomSendBtn">Send</button>
+      </div>
 
       <!-- ========== GAME SCREEN ========== -->
       <div id="gameScreen">

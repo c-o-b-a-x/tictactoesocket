@@ -211,6 +211,77 @@ io.on("connection", (socket) => {
     }
   });
 });
+io.on("connection", (socket) => {
+  console.log("User connected:", socket.id);
+
+  // Join a room (optional, you may have a room system)
+  socket.on("joinRoom", (roomName) => {
+    socket.join(roomName);
+    console.log(`${socket.id} joined room ${roomName}`);
+  });
+
+  // Global chat
+  socket.on("globalMessage", (msg) => {
+    io.emit("globalMessage", msg); // broadcast to all clients
+  });
+
+  // Room chat
+  socket.on("roomMessage", ({ room, msg }) => {
+    io.to(room).emit("roomMessage", msg); // broadcast only to room
+  });
+
+  socket.on("disconnect", () => {
+    console.log("User disconnected:", socket.id);
+  });
+});
+const socket = io("https://your-app.onrender.com");
+
+// --- Global chat ---
+const globalInput = document.getElementById("globalInput");
+const globalBtn = document.getElementById("globalSendBtn");
+const globalMessages = document.getElementById("globalMessages");
+
+globalBtn.addEventListener("click", () => {
+  const msg = globalInput.value;
+  if (msg.trim() !== "") {
+    socket.emit("globalMessage", msg);
+    globalInput.value = "";
+  }
+});
+
+socket.on("globalMessage", (msg) => {
+  const li = document.createElement("li");
+  li.textContent = msg;
+  globalMessages.appendChild(li);
+  globalMessages.scrollTop = globalMessages.scrollHeight;
+});
+
+// --- Room chat ---
+const roomInput = document.getElementById("roomInput");
+const roomBtn = document.getElementById("roomSendBtn");
+const roomMessages = document.getElementById("roomMessages");
+let currentRoom = ""; // set when user joins a room
+
+// Join a room
+function joinRoom(roomName) {
+  currentRoom = roomName;
+  socket.emit("joinRoom", roomName);
+}
+
+roomBtn.addEventListener("click", () => {
+  const msg = roomInput.value;
+  if (msg.trim() !== "" && currentRoom) {
+    socket.emit("roomMessage", { room: currentRoom, msg });
+    roomInput.value = "";
+  }
+});
+
+socket.on("roomMessage", (msg) => {
+  const li = document.createElement("li");
+  li.textContent = msg;
+  roomMessages.appendChild(li);
+  roomMessages.scrollTop = roomMessages.scrollHeight;
+});
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => console.log("Server on " + PORT));
