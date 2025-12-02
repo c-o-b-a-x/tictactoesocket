@@ -233,7 +233,6 @@
 
       socket.on("spectator", () => {
         status.innerText = "You are a spectator";
-        status.id = "spectator";
       });
 
       socket.on("update", (room) => {
@@ -251,7 +250,6 @@
 
         if (turn === symbol) {
           status.innerText = `Your turn (${symbol})`;
-          status.id = "player";
         } else {
           const opp =
             turn === "X"
@@ -267,6 +265,8 @@
       });
 
       socket.on("gameOver", ({ winner, line }) => {
+        room.board[index] = symbol;
+
         gameOver = true;
         restartBtn.style.display = "block";
 
