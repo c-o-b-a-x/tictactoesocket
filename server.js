@@ -20,12 +20,13 @@ rooms["lobby"] = {
   players: {},
   spectators: [],
   usernames: {},
-  board: ["X", "X", "", "", "", "", "", "", ""],
+  board: ["", "", "", "", "", "", "", "", ""],
   turn: "X",
   over: false,
 };
-// ====
-// WIN LINES (client will animate)
+// ========================================
+
+// WIN LINES
 const winLines = [
   [0, 1, 2],
   [3, 4, 5],
@@ -47,6 +48,32 @@ function getWinData(board) {
   return null;
 }
 
+// =============================
+// ROOM DELETE TIMER FUNCTION
+// =============================
+function scheduleRoomDeletion(roomCode) {
+  const room = rooms[roomCode];
+  if (!room) return;
+
+  if (room.deleteTimer) return; // Already scheduled
+
+  room.deleteTimer = setTimeout(() => {
+    const current = rooms[roomCode];
+    if (!current) return;
+
+    const noPlayers = !current.players.X && !current.players.O;
+    const noSpectators = current.spectators.length === 0;
+
+    if (noPlayers && noSpectators) {
+      console.log("Deleting empty room:", roomCode);
+      delete rooms[roomCode];
+    } else {
+      // Someone rejoined before timeout
+      current.deleteTimer = null;
+    }
+  }, 2 * 60 * 1000); // 2 minutes
+}
+
 io.on("connection", (socket) => {
   console.log("Connected:", socket.id);
 
@@ -59,16 +86,24 @@ io.on("connection", (socket) => {
   socket.on("joinRoom", ({ roomCode, username }) => {
     if (!rooms[roomCode]) {
       rooms[roomCode] = {
-        players: {}, // X, O
-        spectators: [], // infinite
-        usernames: {}, // socketID -> username
+        players: {},
+        spectators: [],
+        usernames: {},
         board: ["", "", "", "", "", "", "", "", ""],
         turn: "X",
         over: false,
+        deleteTimer: null,
       };
     }
 
     const room = rooms[roomCode];
+
+    // If room had a delete timer because it was empty, cancel it
+    if (room.deleteTimer) {
+      clearTimeout(room.deleteTimer);
+      room.deleteTimer = null;
+    }
+
     room.usernames[socket.id] = username;
 
     // assign X or O
@@ -97,7 +132,7 @@ io.on("connection", (socket) => {
     const room = rooms[roomCode];
     if (!room || room.over) return;
 
-    let symbol =
+    const symbol =
       room.players.X === socket.id
         ? "X"
         : room.players.O === socket.id
@@ -107,13 +142,13 @@ io.on("connection", (socket) => {
     if (symbol !== room.turn) return;
     if (room.board[index] !== "") return;
 
-    // --- MAKE MOVE ---
+    // Make move
     room.board[index] = symbol;
 
-    // --- 1) SEND UPDATE SO THE FINAL MOVE SHOWS ---
+    // Immediately update board so final move shows
     io.to(roomCode).emit("update", room);
 
-    // --- CHECK WIN ---
+    // Check win
     const winData = getWinData(room.board);
     if (winData) {
       room.over = true;
@@ -121,14 +156,14 @@ io.on("connection", (socket) => {
       return;
     }
 
-    // --- CHECK DRAW ---
+    // Check draw
     if (!room.board.includes("")) {
       room.over = true;
       io.to(roomCode).emit("gameOver", { winner: "draw", line: [] });
       return;
     }
 
-    // --- NEXT TURN ---
+    // Switch turns
     room.turn = room.turn === "X" ? "O" : "X";
   });
 
@@ -144,18 +179,35 @@ io.on("connection", (socket) => {
     io.to(roomCode).emit("update", room);
   });
 
+  // =============== DISCONNECT ===============
   socket.on("disconnect", () => {
     for (const r in rooms) {
       const room = rooms[r];
       if (!room) continue;
 
+      // Remove player/spectator
       if (room.players.X === socket.id) delete room.players.X;
       if (room.players.O === socket.id) delete room.players.O;
-
       room.spectators = room.spectators.filter((s) => s !== socket.id);
       delete room.usernames[socket.id];
 
+      // AUTO RESET when both players gone
+      if (!room.players.X && !room.players.O) {
+        room.board = ["", "", "", "", "", "", "", "", ""];
+        room.turn = "X";
+        room.over = false;
+        io.to(r).emit("update", room);
+      }
+
       io.to(r).emit("update", room);
+
+      // AUTO DELETE if room empty
+      const noPlayers = !room.players.X && !room.players.O;
+      const noSpectators = room.spectators.length === 0;
+
+      if (noPlayers && noSpectators) {
+        scheduleRoomDeletion(r);
+      }
     }
   });
 });
