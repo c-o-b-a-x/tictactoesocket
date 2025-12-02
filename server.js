@@ -14,6 +14,17 @@ app.use(express.static(path.join(__dirname, "public")));
 
 const rooms = {};
 
+// ===== DEFAULT ROOM (easy to remove) =====
+// Just comment this block for final production
+rooms["lobby"] = {
+  players: {},
+  spectators: [],
+  usernames: {},
+  board: ["X", "X", "", "", "", "", "", "", ""],
+  turn: "X",
+  over: false,
+};
+// ====
 // WIN LINES (client will animate)
 const winLines = [
   [0, 1, 2],
@@ -96,26 +107,29 @@ io.on("connection", (socket) => {
     if (symbol !== room.turn) return;
     if (room.board[index] !== "") return;
 
+    // --- MAKE MOVE ---
     room.board[index] = symbol;
 
+    // --- 1) SEND UPDATE SO THE FINAL MOVE SHOWS ---
+    io.to(roomCode).emit("update", room);
+
+    // --- CHECK WIN ---
     const winData = getWinData(room.board);
     if (winData) {
-      room.board[index] = symbol;
-
       room.over = true;
-
       io.to(roomCode).emit("gameOver", winData);
       return;
     }
 
+    // --- CHECK DRAW ---
     if (!room.board.includes("")) {
       room.over = true;
       io.to(roomCode).emit("gameOver", { winner: "draw", line: [] });
       return;
     }
 
+    // --- NEXT TURN ---
     room.turn = room.turn === "X" ? "O" : "X";
-    io.to(roomCode).emit("update", room);
   });
 
   // =============== RESTART ===============
