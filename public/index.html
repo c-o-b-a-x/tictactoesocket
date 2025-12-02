@@ -172,10 +172,17 @@
       // ============= THEME TOGGLE =================
       document.getElementById("toggleTheme").onclick = () => {
         document.body.classList.toggle("light");
-        document.getElementById("toggleTheme").innerText =
-          document.body.classList.contains("light")
-            ? "Dark Mode"
-            : "Light Mode";
+
+        const lightMode = document.body.classList.contains("light");
+
+        document.getElementById("toggleTheme").innerText = lightMode
+          ? "Dark Mode"
+          : "Light Mode";
+
+        document.querySelectorAll(".cell").forEach((el) => {
+          el.style.backgroundColor = lightMode ? "white" : "black";
+          el.style.color = lightMode ? "black" : "white";
+        });
       };
 
       // ============= INIT =============
