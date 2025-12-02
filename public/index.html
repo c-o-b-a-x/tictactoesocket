@@ -265,8 +265,6 @@
       });
 
       socket.on("gameOver", ({ winner, line }) => {
-        room.board[index] = symbol;
-
         gameOver = true;
         restartBtn.style.display = "block";
 

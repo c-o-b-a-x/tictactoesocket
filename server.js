@@ -100,7 +100,10 @@ io.on("connection", (socket) => {
 
     const winData = getWinData(room.board);
     if (winData) {
+      room.board[index] = symbol;
+
       room.over = true;
+
       io.to(roomCode).emit("gameOver", winData);
       return;
     }
