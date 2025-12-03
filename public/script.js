@@ -1,6 +1,5 @@
-const socket = io(); // Remove hardcoded URL, or use your actual URL
-
-let currentRoom = ""; // Track which room user is in
+// This script.js assumes socket is already initialized in the HTML
+// and that roomCode variable exists in the global scope
 
 // =============== CHAT FUNCTIONALITY ===============
 const roomInput = document.getElementById("roomInput");
@@ -25,8 +24,10 @@ if (roomInput) {
 
 function sendMessage() {
   const msg = roomInput.value.trim();
-  if (msg !== "" && currentRoom) {
-    socket.emit("roomMessage", { roomCode: currentRoom, msg });
+
+  // Use the global roomCode variable from index.html
+  if (msg !== "" && window.roomCode) {
+    socket.emit("roomMessage", { roomCode: window.roomCode, msg });
     roomInput.value = "";
   }
 }
@@ -48,25 +49,3 @@ socket.on("roomMessage", ({ username, message, socketId }) => {
   roomMessages.appendChild(li);
   roomMessages.scrollTop = roomMessages.scrollHeight;
 });
-
-// =============== GAME ROOM JOINING ===============
-// Call this when user joins a room
-function joinGameRoom(roomCode, username) {
-  currentRoom = roomCode;
-  socket.emit("joinRoom", { roomCode, username });
-
-  // Clear chat when joining new room
-  if (roomMessages) {
-    roomMessages.innerHTML = "";
-  }
-}
-
-// Example: If you have a join button
-// document.getElementById("joinBtn").addEventListener("click", () => {
-//   const roomCode = document.getElementById("roomCodeInput").value;
-//   const username = document.getElementById("usernameInput").value;
-//   joinGameRoom(roomCode, username);
-// });
-
-// =============== GAME LOGIC (Keep your existing game code) ===============
-// Your existing socket.on("symbol"), socket.on("update"), etc.
