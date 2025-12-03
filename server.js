@@ -84,6 +84,18 @@ io.on("connection", (socket) => {
     socket.emit("roomList", Object.keys(rooms));
   });
 
+  // Helper function to send clean room data without circular references
+  function getRoomData(room) {
+    return {
+      players: room.players,
+      spectators: room.spectators,
+      usernames: room.usernames,
+      board: room.board,
+      turn: room.turn,
+      over: room.over,
+    };
+  }
+
   // =============== JOIN ROOM ===============
   socket.on("joinRoom", ({ roomCode, username }) => {
     if (!rooms[roomCode]) {
@@ -120,13 +132,13 @@ io.on("connection", (socket) => {
       room.spectators.push(socket.id);
       socket.emit("spectator");
       socket.join(roomCode);
-      io.to(roomCode).emit("update", room);
+      io.to(roomCode).emit("update", getRoomData(room));
       return;
     }
 
     socket.join(roomCode);
     socket.emit("symbol", symbol);
-    io.to(roomCode).emit("update", room);
+    io.to(roomCode).emit("update", getRoomData(room));
   });
 
   // =============== PLAY MOVE ===============
@@ -148,7 +160,7 @@ io.on("connection", (socket) => {
     room.board[index] = symbol;
 
     // Immediately update board so final move shows
-    io.to(roomCode).emit("update", room);
+    io.to(roomCode).emit("update", getRoomData(room));
 
     // Check win
     const winData = getWinData(room.board);
@@ -178,7 +190,7 @@ io.on("connection", (socket) => {
     room.turn = "X";
     room.over = false;
 
-    io.to(roomCode).emit("update", room);
+    io.to(roomCode).emit("update", getRoomData(room));
   });
 
   // =============== CHAT MESSAGES ===============
@@ -213,10 +225,10 @@ io.on("connection", (socket) => {
         room.board = ["", "", "", "", "", "", "", "", ""];
         room.turn = "X";
         room.over = false;
-        io.to(r).emit("update", room);
+        io.to(r).emit("update", getRoomData(room));
       }
 
-      io.to(r).emit("update", room);
+      io.to(r).emit("update", getRoomData(room));
 
       // AUTO DELETE if room empty
       const noPlayers = !room.players.X && !room.players.O;
